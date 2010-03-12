@@ -6,7 +6,6 @@ from optparse import make_option
 from django.conf import settings
 from django.core.management.base import NoArgsCommand
 from django.db.models import Q
-from news.decorators import locking
 from news.models import Feed, Article
 
 class Command(NoArgsCommand):
@@ -17,7 +16,6 @@ class Command(NoArgsCommand):
             help='Log output to console.'
         ),
     )
-    @locking
     def handle_noargs(self, **options):
         """
         Update the database with articles
