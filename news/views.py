@@ -4,6 +4,19 @@ from django.shortcuts import get_object_or_404
 from news.models import Category, Article
 
 NEWS_ARTICLE_PAGINATION = getattr(settings, 'NEWS_ARTICLE_PAGINATION', 10)
+NEWS_KEY = getattr(settings, 'NEWS_KEY', '')
+
+
+def run_download(request, *args, **kwargs):
+    if request.GET.get('key') == NEWS_KEY:
+        articles = 0
+        for feed in Feed.objects.filter(active=True):
+            result = feed.download_feed()
+            articles += feed.new_articles_added
+        Article.objects.expire_articles()
+        return HttpResponse('Done: %d' % (articles))
+    return HttpResponse('')
+
 
 def article_list(request, url_path='', template_name='news/article_list.html'):
     extra_context = {'categories': Category.objects.all()}
