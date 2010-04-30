@@ -15,7 +15,13 @@ setup(
     author='Charles Leifer',
     author_email='coleifer@gmail.com',
     url='http://github.com/coleifer/django-news/tree/master',
-    packages=find_packages(),
+    packages=find_packages(exclude=['example']),
+    package_data = {
+        'news': [
+            'templates/*.html',
+            'templates/*/*.html',
+        ],
+    },
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Web Environment',
