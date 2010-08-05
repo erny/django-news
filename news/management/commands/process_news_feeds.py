@@ -6,6 +6,8 @@ from optparse import make_option
 from django.conf import settings
 from django.core.management.base import NoArgsCommand
 from django.db.models import Q
+
+from news.exceptions import NewsException
 from news.models import Feed, Article
 
 class Command(NoArgsCommand):
@@ -41,7 +43,10 @@ class Command(NoArgsCommand):
         for feed in Feed.objects.filter(active=True):
             start = time.time()
             logging.info("Downloading: %s..." % feed.url)
-            result = feed.process_feed()
+            try:
+                result = feed.process_feed()
+            except NewsException:
+                logging.error("Error occurred processing %s" % feed.url)
             end = time.time()
             logging.info("%d new articles found (took %fs)" % (feed.new_articles_added, end - start))
             new_articles += feed.new_articles_added

@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.views.generic.list_detail import object_list
 
 from news.constants import NEWS_KEY, NEWS_ARTICLE_PAGINATION
+from news.exceptions import NewsException
 from news.models import Category, Article, Feed
 
 
@@ -11,8 +12,12 @@ def run_download(request, *args, **kwargs):
     if request.GET.get('key') == NEWS_KEY:
         articles = 0
         for feed in Feed.objects.filter(active=True):
-            result = feed.process_feed()
-            articles += feed.new_articles_added
+            try:
+                result = feed.process_feed()
+            except NewsException:
+                pass
+            else:
+                articles += feed.new_articles_added
         Article.objects.expire_articles()
         return HttpResponse('Done: %d' % (articles))
     return HttpResponse('')
