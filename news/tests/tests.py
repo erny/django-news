@@ -277,6 +277,10 @@ class NewsTestCase(TestCase):
         self.assertEqual(len(resp.context['categories']), 4)
         self.assertEqual(str(resp.context['article_list']), '[<Article: Python and Django rock>, <Article: Django stuff>]')
         self.assertEqual(resp.context['category'].name, 'Django')
+
+        resp = self.client.get('/news/programming/python/django/?q=rock')
+        self.assertEqual(resp.context['search_query'], 'rock')
+        self.assertEqual(str(resp.context['article_list']), '[<Article: Python and Django rock>]')
     
     def test_web_hook(self):
         resp = self.client.get('/news/run-download/?key=wrong')
