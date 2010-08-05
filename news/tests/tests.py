@@ -21,16 +21,8 @@ class NewsTestCase(TestCase):
     urls = 'news.tests.urls'
     
     fake_feed_data = {
-        'Django': [
-            {'title': 'Django #1', 'summary': '<p>Article 1 about django</p>', 'link': '/d1/'},
-            {'title': 'Django #2', 'summary': '<p>Article 2 about django</p>', 'link': '/d2/'},
-            {'title': 'Django + Python #1', 'summary': '<p>Article 1 about django and python</p>', 'link': '/d+p/'},
-        ],
-        'Python': [
-            {'title': 'Python #1', 'summary': '<p>Article 1 about python</p>', 'link': '/p1/'},
-            {'title': 'Python #2', 'summary': '<p>Article 2 about python</p>', 'link': '/p2/'},
-            {'title': 'Python + Django #1', 'summary': '<p>Article 1 about python and django</p>', 'link': '/p+d/'},
-        ],
+        'Django': [],
+        'Python': [],
         'Programming': [
             {'title': 'Git rules', 'summary': '<p>vcs troll</p>', 'link': '/git/'},
             {'title': 'Hg rules and its python', 'summary': '<p>trolled</p>', 'link': '/hg/'},
@@ -249,3 +241,38 @@ class NewsTestCase(TestCase):
         self.assertEqual(list(hg.categories.all()), [programming, python])
         self.assertEqual(list(dj.categories.all()), [programming, django])
         self.assertEqual(list(py.categories.all()), [programming, python, django])
+    
+    def test_list_view(self):
+        feed = Feed.objects.get(name='Programming')
+        results = feed.process_feed()
+        
+        resp = self.client.get('/news/')
+        
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['categories']), 4)
+        self.assertEqual(len(resp.context['article_list']), 4)
+    
+    def test_detail_view(self):
+        feed = Feed.objects.get(name='Programming')
+        results = feed.process_feed()
+        
+        resp = self.client.get('/news/programming/')
+        
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['categories']), 4)
+        self.assertEqual(len(resp.context['article_list']), 4)
+        self.assertEqual(resp.context['category'].name, 'Programming')
+        
+        resp = self.client.get('/news/programming/python/')
+        
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['categories']), 4)
+        self.assertEqual(str(resp.context['article_list']), '[<Article: Python and Django rock>, <Article: Hg rules and its python>]')
+        self.assertEqual(resp.context['category'].name, 'Python')
+        
+        resp = self.client.get('/news/programming/python/django/')
+        
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['categories']), 4)
+        self.assertEqual(str(resp.context['article_list']), '[<Article: Python and Django rock>, <Article: Django stuff>]')
+        self.assertEqual(resp.context['category'].name, 'Django')
