@@ -11,6 +11,7 @@ class FakeFeedItem(dict):
     def __getattr__(self, attr):
         if self.__contains__(attr):
             return self[attr]
+        raise AttributeError
 
 
 class NewsModelsTestCase(TestCase):
@@ -34,11 +35,11 @@ class NewsModelsTestCase(TestCase):
             {'title': 'Python and Django rock', 'summary': '<p>Programming article about python and django</p>', 'link': '/p+d+rokk/'},
         ],
         'Geek': [
-            {'title': 'Apple shit', 'summary': '<script>/* hax0r3d */</script>I <3 apple', 'link': '/apple/'},
-            {'title': 'Homemade wallets', 'summary': 'In forty three easy steps <iframe src="somesuch" />', 'link': '/wtf/'},
+            {'title': 'Apple <b>gear</b>', 'summary': '<script>/* hax0r3d */</script>I <3 apple', 'link': '/apple/'},
+            {'title': 'Homemade wallets', 'description': 'In forty three <b>easy</b> steps <iframe src="somesuch" />', 'link': '/wtf/'},
         ],
         'Hacker News RSS': [
-            {'title': 'Being a startup', 'summary': 'shit\'s hard', 'link': '/startups/'},
+            {'title': 'Being a startup', 'summary': 'damn hard', 'link': '/momoney/'},
             {'title': 'VC Angels', 'summary': 'where dey', 'link': '/whodat/'},
         ]
     }
@@ -81,3 +82,20 @@ class NewsModelsTestCase(TestCase):
         
         django = Category.objects.get(name='Django')
         self.assertEqual(django.url_path, 'progging/python/django/')
+    
+    def test_item_sanitization(self):
+        feed = Feed.objects.get(name='Geek')
+        feed_data = feed.fetch_feed()
+        apple, wallet = feed_data.entries
+        
+        apple_article = feed.sanitize_item(apple)
+        self.assertEqual(apple_article.headline, 'Apple gear')
+        self.assertEqual(apple_article.content, 'I <3 apple')
+        self.assertEqual(apple_article.url, '/apple/')
+        self.assertEqual(apple_article.guid, '/apple/')
+        
+        wallet_article = feed.sanitize_item(wallet)
+        self.assertEqual(wallet_article.headline, 'Homemade wallets')
+        self.assertEqual(wallet_article.content, 'In forty three <b>easy</b> steps ')
+        self.assertEqual(wallet_article.url, '/wtf/')
+        self.assertEqual(wallet_article.guid, '/wtf/')

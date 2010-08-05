@@ -161,8 +161,8 @@ class Feed(models.Model):
                  'created_parsed']
         
         for attr in attrs:
-            if hasattr(entry, attr):
-                pubdate = getattr(entry, attr)
+            if hasattr(item, attr):
+                pubdate = getattr(item, attr)
                 break
         
         if pubdate:
@@ -194,7 +194,7 @@ class Feed(models.Model):
             url=url, 
             content=summary, 
             guid=guid, 
-            publish=date_modified
+            publish=pubdate
         )
     
     def article_matches_category(self, article, category):
