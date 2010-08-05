@@ -226,3 +226,26 @@ class NewsModelsTestCase(TestCase):
         
         results = feed.process_feed()
         self.assertEqual(results, 0)
+    
+    def test_feed_processing(self):
+        # double check that the articles are categorized properly even though
+        # the underlying methods are covered elsewhere in the tests
+        feed = Feed.objects.get(name='Programming')
+        results = feed.process_feed()
+        
+        self.assertEqual(Article.objects.all().count(), 4)
+        
+        # load everything up from the db
+        git = Article.objects.get(headline='Git rules')
+        hg = Article.objects.get(headline='Hg rules and its python')
+        dj = Article.objects.get(headline='Django stuff')
+        py = Article.objects.get(headline='Python and Django rock')
+        
+        programming = Category.objects.get(name='Programming')
+        python = Category.objects.get(name='Python')
+        django = Category.objects.get(name='Django')
+        
+        self.assertEqual(list(git.categories.all()), [programming])
+        self.assertEqual(list(hg.categories.all()), [programming, python])
+        self.assertEqual(list(dj.categories.all()), [programming, django])
+        self.assertEqual(list(py.categories.all()), [programming, python, django])
