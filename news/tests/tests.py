@@ -55,12 +55,11 @@ class NewsModelsTestCase(TestCase):
         #  _( ^)
         # /   ~\
         self.orig_fetch_feed = Feed.fetch_feed
-        Feed.fetch_feed = lambda s: self.get_feed(s.name)
+        Feed.fetch_feed = lambda f: self.get_feed(f.name)
     
     def tearDown(self):
         Feed.fetch_feed = self.orig_fetch_feed
 
-    
     def test_keyword_list(self):
         test_whitelist = WhiteListFilter(name='Test', keywords='test1, test2')
         self.assertEqual(test_whitelist.get_keyword_list(), ['test1', 'test2'])
@@ -70,3 +69,15 @@ class NewsModelsTestCase(TestCase):
     
         test_whitelist.keywords = 'test1 test2'
         self.assertEqual(test_whitelist.get_keyword_list(), ['test1 test2'])
+    
+    def test_category_path_updating(self):
+        programming = Category.objects.get(name='Programming')
+        programming.name = 'Progging'
+        programming.slug = 'progging'
+        programming.save()
+        
+        python = Category.objects.get(name='Python')
+        self.assertEqual(python.url_path, 'progging/python/')
+        
+        django = Category.objects.get(name='Django')
+        self.assertEqual(django.url_path, 'progging/python/django/')
