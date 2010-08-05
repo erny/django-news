@@ -5,7 +5,9 @@ from news.models import Feed, Article, Category, WhiteListFilter
 
 class FakeFeed(object):
     encoding = 'utf-8'
-    entries = []
+    
+    def __init__(self):
+        self.entries = []
 
 class FakeFeedItem(dict):
     def __getattr__(self, attr):
@@ -31,7 +33,7 @@ class NewsModelsTestCase(TestCase):
         ],
         'Programming': [
             {'title': 'Git rules', 'summary': '<p>vcs troll</p>', 'link': '/git/'},
-            {'title': 'Hg rules', 'summary': '<p>trolled</p>', 'link': '/hg/'},
+            {'title': 'Hg rules and its python', 'summary': '<p>trolled</p>', 'link': '/hg/'},
             {'title': 'Python and Django rock', 'summary': '<p>Programming article about python and django</p>', 'link': '/p+d+rokk/'},
         ],
         'Geek': [
@@ -99,3 +101,46 @@ class NewsModelsTestCase(TestCase):
         self.assertEqual(wallet_article.content, 'In forty three <b>easy</b> steps ')
         self.assertEqual(wallet_article.url, '/wtf/')
         self.assertEqual(wallet_article.guid, '/wtf/')
+    
+    def test_categorization_simple(self):
+        geek = Category.objects.get(name='Geek')
+        
+        feed = Feed.objects.get(name='Geek')
+        feed_data = feed.fetch_feed()
+        apple, wallet = feed_data.entries
+        
+        apple_article = feed.sanitize_item(apple)
+        apple_categories = feed.get_categories_for_article(apple_article)
+        
+        self.assertEqual(apple_categories, [geek])
+        
+        wallet_article = feed.sanitize_item(wallet)
+        wallet_categories = feed.get_categories_for_article(wallet_article)
+        
+        self.assertEqual(wallet_categories, [geek])
+    
+    def test_subcategorization(self):
+        # grab the categories
+        programming = Category.objects.get(name='Programming')
+        python = Category.objects.get(name='Python')
+        django = Category.objects.get(name='Django')
+        
+        feed = Feed.objects.get(name='Programming')
+        feed_data = feed.fetch_feed()
+        
+        git, hg, py = feed_data.entries
+        
+        git_article = feed.sanitize_item(git)
+        git_categories = feed.get_categories_for_article(git_article)
+        
+        self.assertEqual(git_categories, [programming])
+        
+        hg_article = feed.sanitize_item(hg)
+        hg_categories = feed.get_categories_for_article(hg_article)
+        
+        self.assertEqual(hg_categories, [programming, python])
+        
+        py_article = feed.sanitize_item(py)
+        py_categories = feed.get_categories_for_article(py_article)
+        
+        self.assertEqual(py_categories, [programming, python, django])

@@ -41,7 +41,7 @@
     "fields": {
       "level": 0, 
       "url_path": "geek/", 
-      "name": "geek", 
+      "name": "Geek", 
       "parent": null, 
       "slug": "geek"
     }
@@ -95,7 +95,7 @@
     "model": "news.categoryrelationship", 
     "fields": {
       "category": 3, 
-      "included_category": 1, 
+      "included_category": 2, 
       "white_list": [
         2
       ]

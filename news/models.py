@@ -197,22 +197,18 @@ class Feed(models.Model):
             publish=pubdate
         )
     
-    def article_matches_category(self, article, category):
-        relationship_queryset = FeedCategoryRelationship.objects.filter(
-            feed=self, category=category)
+    def article_passes(self, article, whitelist_queryset):
+        keywords = []
         
-        for relationship in relationship_queryset.all():
-            keywords = []
-            
-            # build up a list of all the keywords specified by the relationship
-            # between this feed and the category
-            for white_list in relationship.white_list.all():
-                keywords.extend(white_list.get_keyword_list())
-            
-            if keywords:
-                regex = re.compile(r'(%s)' % '|'.join([keywords]), re.I)
-                if not regex.search(article.headline):
-                    return False
+        # build up a list of all the keywords specified by the relationship
+        # between this feed and the category
+        for white_list in whitelist_queryset:
+            keywords.extend(white_list.get_keyword_list())
+        
+        if keywords:
+            regex = re.compile(r'(%s)' % '|'.join(keywords), re.I)
+            if not regex.search(article.headline):
+                return False
         
         return True
     
@@ -220,15 +216,19 @@ class Feed(models.Model):
         # what categories will this article get added to?    
         matching_categories = []
         
-        def handle_category(category):
-            if self.article_matches_category(article, category):
-                matching_categories.append(category)
-                for category_rel in CategoryRelationship.objects.filter(included_category=category):
-                    handle_category(category_rel.category)
+        def handle_subcategories(category):
+            for category_rel in CategoryRelationship.objects.filter(included_category=category):
+                whitelist_qs = category_rel.white_list.all()
+                if self.article_passes(article, whitelist_qs):
+                    matching_categories.append(category_rel.category)
+                    handle_subcategories(category_rel.category)
         
         # iterate over the categories associated with this feed
         for category in self.categories.all():
-            handle_category(category)
+            rel = FeedCategoryRelationship.objects.get(feed=self, category=category)
+            if self.article_passes(article, rel.white_list.all()):
+                matching_categories.append(category)
+                handle_subcategories(category)
         
         return matching_categories
     
