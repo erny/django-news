@@ -137,9 +137,8 @@ class Feed(models.Model):
     
     def fetch_feed(self):
         data = feedparser.parse(self.url)
-        if 'bozo' in data:
-            raise NewsException('Error fetching %s: %s' % \
-                                (self.url, data.bozo_exception))
+        if 'bozo' in data and data.bozo:
+            raise NewsException('Error fetching %s' % self.url)
         return data
     
     def _encode(self, s, e):
