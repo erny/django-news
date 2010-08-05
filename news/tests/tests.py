@@ -43,6 +43,8 @@ class NewsModelsTestCase(TestCase):
         'Hacker News RSS': [
             {'title': 'Being a startup', 'summary': 'damn hard', 'link': '/momoney/'},
             {'title': 'VC Angels', 'summary': 'where dey', 'link': '/whodat/'},
+            {'title': 'A python article', 'summary': 'awesome', 'link': '/python/'},
+            {'title': 'A django article', 'summary': 'awesome', 'link': '/django/'},
         ]
     }
     
@@ -144,3 +146,31 @@ class NewsModelsTestCase(TestCase):
         py_categories = feed.get_categories_for_article(py_article)
         
         self.assertEqual(py_categories, [programming, python, django])
+    
+    def test_whitelisting(self):
+        # hacker news will go into programming if it matches python or django
+        # grab the categories
+        programming = Category.objects.get(name='Programming')
+        python = Category.objects.get(name='Python')
+        django = Category.objects.get(name='Django')
+        geek = Category.objects.get(name='Geek')
+        
+        feed = Feed.objects.get(name='Hacker News RSS')
+        feed_data = feed.fetch_feed()
+        
+        misc, misc, py, dj = feed_data.entries
+        
+        misc_article = feed.sanitize_item(misc)
+        misc_categories = feed.get_categories_for_article(misc_article)
+        
+        self.assertEqual(misc_categories, [geek])
+        
+        py_article = feed.sanitize_item(py)
+        py_categories = feed.get_categories_for_article(py_article)
+        
+        self.assertEqual(py_categories, [geek, programming, python])
+        
+        dj_article = feed.sanitize_item(dj)
+        dj_categories = feed.get_categories_for_article(dj_article)
+        
+        self.assertEqual(dj_categories, [geek, programming, django])

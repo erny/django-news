@@ -221,7 +221,7 @@ class Feed(models.Model):
                 whitelist_qs = category_rel.white_list.all()
                 if self.article_passes(article, whitelist_qs):
                     matching_categories.append(category_rel.category)
-                    handle_subcategories(category_rel.category)
+                handle_subcategories(category_rel.category)
         
         # iterate over the categories associated with this feed
         for category in self.categories.all():
