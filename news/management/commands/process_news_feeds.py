@@ -41,9 +41,7 @@ class Command(NoArgsCommand):
         for feed in Feed.objects.filter(active=True):
             start = time.time()
             logging.info("Downloading: %s..." % feed.url)
-            result = feed.download_feed()
-            if result == False:
-                logging.warn("Error downloading %s" % feed.url)    
+            result = feed.process_feed()
             end = time.time()
             logging.info("%d new articles found (took %fs)" % (feed.new_articles_added, end - start))
             new_articles += feed.new_articles_added

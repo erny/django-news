@@ -11,7 +11,7 @@ def run_download(request, *args, **kwargs):
     if request.GET.get('key') == NEWS_KEY:
         articles = 0
         for feed in Feed.objects.filter(active=True):
-            result = feed.download_feed()
+            result = feed.process_feed()
             articles += feed.new_articles_added
         Article.objects.expire_articles()
         return HttpResponse('Done: %d' % (articles))

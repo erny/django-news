@@ -1,6 +1,7 @@
 from django.test import TestCase
 
 from news.models import Feed, Article, Category, WhiteListFilter
+from news.management.commands.process_news_feeds import Command
 
 
 class FakeFeed(object):
@@ -276,3 +277,15 @@ class NewsTestCase(TestCase):
         self.assertEqual(len(resp.context['categories']), 4)
         self.assertEqual(str(resp.context['article_list']), '[<Article: Python and Django rock>, <Article: Django stuff>]')
         self.assertEqual(resp.context['category'].name, 'Django')
+    
+    def test_web_hook(self):
+        resp = self.client.get('/news/run-download/?key=wrong')
+        self.assertEqual(Article.objects.count(), 0)
+        
+        resp = self.client.get('/news/run-download/?key=test')
+        self.assertEqual(Article.objects.count(), 10)
+    
+    def test_management_command(self):
+        cmd = Command()
+        cmd.handle_noargs()
+        self.assertEqual(Article.objects.count(), 10)
