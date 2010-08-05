@@ -156,21 +156,21 @@ class Feed(models.Model):
         return summary
     
     def get_item_pubdate(self, item):
-        try:
-            pubdate = None
-            attrs = ['updated_parsed', 'published_parsed', 'date_parsed', 
-                     'created_parsed']
-            
-            for attr in attrs:
-                if hasattr(entry, attr):
-                    pubdate = getattr(entry, attr)
-                    break
-            
-            if pubdate:
+        pubdate = None
+        attrs = ['updated_parsed', 'published_parsed', 'date_parsed', 
+                 'created_parsed']
+        
+        for attr in attrs:
+            if hasattr(entry, attr):
+                pubdate = getattr(entry, attr)
+                break
+        
+        if pubdate:
+            try:
                 ts = time.mktime(pubdate)
                 return datetime.datetime.fromtimestamp(ts)
-        except TypeError:
-            pass
+            except TypeError:
+                pass
         
         return datetime.datetime.now()
     

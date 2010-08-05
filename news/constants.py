@@ -6,7 +6,7 @@ from django.conf import settings
 # blocked html takes a list of tag names, i.e. ['script', 'img', 'embed']
 NEWS_BLOCKED_HTML = getattr(settings, 'NEWS_BLOCKED_HTML', [])
 NEWS_BLOCKED_REGEX = re.compile(r'<(%s)[^>]*(/>|.*?</\1>)' % \
-    ('|'.join(BLOCKED_HTML)), re.S | re.I)
+    ('|'.join(NEWS_BLOCKED_HTML)), re.S | re.I)
 
 
 # default disallow feed items to have html in their titles
