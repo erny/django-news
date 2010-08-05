@@ -16,7 +16,7 @@ class FakeFeedItem(dict):
         raise AttributeError
 
 
-class NewsModelsTestCase(TestCase):
+class NewsTestCase(TestCase):
     fixtures = ['news_test_data']
     urls = 'news.tests.urls'
     
