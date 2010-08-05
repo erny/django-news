@@ -216,3 +216,13 @@ class NewsModelsTestCase(TestCase):
         dj_categories = feed.get_categories_for_article(dj_article)
         
         self.assertEqual(dj_categories, [geek, programming, django])
+    
+    def test_feed_repeatability(self):
+        # feed fetching needs to be repeatable so it can get cron'd up, lets
+        # test that
+        feed = Feed.objects.get(name='Programming')
+        results = feed.process_feed()
+        self.assertEqual(results, 4)
+        
+        results = feed.process_feed()
+        self.assertEqual(results, 0)
