@@ -1,19 +1,15 @@
-import time
 import datetime
 import feedparser
 import re
+import time
 
 from django.conf import settings
 from django.db import models
 
-# blocked html takes a list of tag names, i.e. ['script', 'img', 'embed']
-BLOCKED_HTML = getattr(settings, 'NEWS_BLOCKED_HTML', [])
-BLOCKED_REGEX = re.compile(r'<(%s)[^>]*(/>|.*?</\1>)' % ('|'.join(BLOCKED_HTML)), 
-                           re.DOTALL | re.IGNORECASE)
+from news.constants import (NEWS_EXPIRE_ARTICLES_DAYS, NEWS_BLOCKED_HTML,
+    NEWS_BLOCKED_REGEX, NEWS_NO_HTML_TITLES)
+from news.exceptions import NewsException
 
-# number of days after which articles should be marked expired
-EXPIRE_ARTICLES = getattr(settings, 'EXPIRE_ARTICLES', True)
-EXPIRE_ARTICLES_DAYS = getattr(settings, 'EXPIRE_ARTICLES', 7)
 
 class Source(models.Model):
     """
@@ -30,6 +26,7 @@ class Source(models.Model):
     def __unicode__(self):
         return u'%s' % self.name
 
+
 class WhiteListFilter(models.Model):
     name = models.CharField(max_length=50)
     keywords = models.TextField(help_text="Comma separated list of keywords")
@@ -39,6 +36,10 @@ class WhiteListFilter(models.Model):
     
     def __unicode__(self):
         return u'%s' % self.name
+    
+    def get_keyword_list(self):
+        return [kw.strip() for kw in self.keywords.split(',') if kw.strip()]
+
 
 class Category(models.Model):
     """
@@ -95,7 +96,7 @@ class Category(models.Model):
 
     @models.permalink
     def get_absolute_url(self):
-        return ('news_article_index', None, { 'url_path': self.url_path })
+        return ('news_article_index', None, {'url_path': self.url_path})
 
 
 class CategoryRelationship(models.Model):
@@ -134,127 +135,138 @@ class Feed(models.Model):
     def __unicode__(self):
         return u'%s - %s' % (self.source.name, self.name)
     
-    def download_feed(self):
+    def fetch_feed(self):
+        data = feedparser.parse(self.url)
+        if 'bozo' in data:
+            raise NewsException('Error fetching %s: %s' % \
+                                (self.url, data['bozo_exception']))
+        return data
+    
+    def _encode(self, s, e):
+        return s.encode(e, 'xmlcharrefreplace')
+        
+    def get_item_summary(self, item):
+        summary = ''
+        if hasattr(item, "summary"):
+            summary = item.summary
+        elif hasattr(item, "content"):
+            summary = item.content[0].value
+        elif hasattr(item, "description"):
+            summary = item.description
+        return summary
+    
+    def get_item_pubdate(self, item):
         try:
-            # download the feed data
-            data = feedparser.parse(self.url)
-        except:
-            return False
+            pubdate = None
+            attrs = ['updated_parsed', 'published_parsed', 'date_parsed', 
+                     'created_parsed']
+            
+            for attr in attrs:
+                if hasattr(entry, attr):
+                    pubdate = getattr(entry, attr)
+                    break
+            
+            if pubdate:
+                ts = time.mktime(pubdate)
+                return datetime.datetime.fromtimestamp(ts)
+        except TypeError:
+            pass
+        
+        return datetime.datetime.now()
+    
+    def sanitize_item(self, item, encoding='utf-8'):
+        if NEWS_NO_HTML_TITLES:
+            item.title = re.sub('<[^>]*>', '', item.title)
+        
+        headline = self._encode(item.title, encoding)[:255]
+        guid = self._encode(item.get("id", item.link), encoding)
+        url = self._encode(item.link, encoding)
+        
+        summary = self._encode(self.get_item_summary(item), encoding)
+        if NEWS_BLOCKED_HTML:
+            summary = re.sub(NEWS_BLOCKED_REGEX, '', summary)
+        
+        pubdate = self.get_item_pubdate(item)
+        
+        return Article(
+            feed=self,
+            headline=headline, 
+            url=url, 
+            content=summary, 
+            guid=guid, 
+            publish=date_modified
+        )
+    
+    def article_matches_category(self, article, category):
+        relationship_queryset = FeedCategoryRelationship.objects.filter(
+            feed=self, category=category)
+        
+        for relationship in relationship_queryset.all():
+            keywords = []
+            
+            # build up a list of all the keywords specified by the relationship
+            # between this feed and the category
+            for white_list in relationship.white_list.all():
+                keywords.extend(white_list.get_keyword_list())
+            
+            if keywords:
+                regex = re.compile(r'(%s)' % '|'.join([keywords]), re.I)
+                if not regex.search(article.headline):
+                    return False
+        
+        return True
+    
+    def get_categories_for_article(self, article):
+        # what categories will this article get added to?    
+        matching_categories = []
+        
+        def handle_category(category):
+            if self.article_matches_category(article, category):
+                matching_categories.append(category)
+                for category_rel in CategoryRelationship.objects.filter(included_category=category):
+                    handle_category(category_rel.category)
+        
+        # iterate over the categories associated with this feed
+        for category in self.categories.all():
+            handle_category(category)
+        
+        return matching_categories
+    
+    def process_feed(self):
+        data = self.fetch_feed()
         
         new_articles_added = 0
         
         # iterate over the entries returned by the feed
-        for entry in data.entries:
-            # remove all HTML from the title and clean up the data
-            entry.title = re.sub('<[^>]*>', '', entry.title)
-            headline = entry.title.encode(data.encoding, "xmlcharrefreplace")
-            guid = entry.get("id", entry.link).encode(data.encoding, "xmlcharrefreplace")
-            url = entry.link.encode(data.encoding, "xmlcharrefreplace")
-            
-            if not guid:
-                guid = url
+        for item in data.entries:
+            article = self.sanitize_item(item, data.encoding)
             
             try:
-                article = Article.objects.get(
-                    models.Q(guid=guid, feed=self) |
-                    models.Q(headline__iexact=headline))
-            except Article.DoesNotExist:
-                if hasattr(entry, "summary"):
-                    content = entry.summary
-                elif hasattr(entry, "content"):
-                    content = entry.content[0].value
-                elif hasattr(entry, "description"):
-                    content = entry.description
-                else:
-                    content = u""
-                content = content.encode(data.encoding, "xmlcharrefreplace")
-                
-                try:
-                    pubdate = None
-                    attrs = ['updated_parsed', 'published_parsed', 'date_parsed', 'created_parsed']
-                    for attr in attrs:
-                        if hasattr(entry, attr):
-                            pubdate = getattr(entry, attr)
-                            break
-                    
-                    if not pubdate:
-                        if data.feed.has_key('updated_parsed'):
-                            pubdate = data.feed.updated_parsed
-                        elif data.feed.has_key('updated'):
-                            pubdate = data.feed.updated
-                    
-                    if pubdate:
-                        date_modified = datetime.datetime.fromtimestamp(time.mktime(pubdate))
-                    else:
-                        date_modified = datetime.datetime.now()
-                except TypeError:
-                    date_modified = datetime.datetime.now()
-                
-                # note: the article is not getting saved yet - only save those
-                # articles that will go into at least one category
-                article = Article(
-                    feed=self,
-                    headline=headline, 
-                    url=url, 
-                    content=content, 
-                    guid=guid, 
-                    publish=date_modified
+                existing_article = Article.objects.get(
+                    models.Q(guid=article.guid, feed=self) |
+                    models.Q(headline__iexact=article.headline)
                 )
+            except Article.DoesNotExist:
+                pass
+            else:
+                article = existing_article
             
-            # what categories will this article get added to?    
-            add_to_categories = []
+            matching_categories = self.get_categories_for_article(article)
             
-            # iterate over the categories associated with this feed
-            for category in self.categories.all():
-                relationship_queryset = FeedCategoryRelationship.objects.filter(
-                    feed=self, category=category)
-                article_passes = True
-                
-                for relationship in relationship_queryset.all():
-                    whitelist = []
-                    for white_list in relationship.white_list.all():
-                        whitelist += white_list.keywords.split(',')
-                    
-                    if whitelist:
-                        if not re.search(re.compile(r'(%s)' % '|'.join([s.strip() for s in whitelist if s.strip()]), re.IGNORECASE), article.headline):
-                            article_passes = False
-                            break
-                    
-                    if BLOCKED_HTML:
-                        article.content = re.sub(BLOCKED_REGEX, '', article.content)
-                    
-                if article_passes:
-                    add_to_categories.append(category)
-            
-            if len(add_to_categories) > 0:
+            if len(matching_categories) > 0:
                 if not article.pk:
                     new_articles_added += 1
-                article.save()
+                article.save_base()
                 
-                # now check the categories we're adding the article to, and see
-                # if any other categories include them - if so, make sure the
-                # article passes any white-lists and add the article to the
-                # included categories as well
-                for category in add_to_categories:
-                    for category_relationship in CategoryRelationship.objects.filter(included_category=category):
-                        article_passes = True
-                        whitelist = []
-                        for white_list in category_relationship.white_list.all():
-                            whitelist += white_list.keywords.split(',')
-                        
-                        if whitelist:
-                            if not re.search(re.compile(r'(%s)' % '|'.join([s.strip() for s in whitelist if s.strip()]), re.IGNORECASE), article.headline):
-                                article_passes = False
-                                break
-                        
-                        add_to_categories.append(category_relationship.category)
-                
-                article.categories = add_to_categories
+                article.categories = matching_categories
                 article.save()
         
         self.new_articles_added = new_articles_added
         self.last_downloaded = datetime.datetime.now()
         self.save()
+        
+        return self.new_articles_added
+
 
 class FeedCategoryRelationship(models.Model):
     feed = models.ForeignKey(Feed)
@@ -263,13 +275,16 @@ class FeedCategoryRelationship(models.Model):
 
 
 class ArticleManager(models.Manager):
+    def expired_articles(self):
+        if NEWS_EXPIRE_ARTICLES_DAYS:
+            delta = datetime.timedelta(days=NEWS_EXPIRE_ARTICLES_DAYS)
+            expire_date = datetime.datetime.now() - delta
+            return self.filter(date_added__lt=expire_date)
+        else:
+            return self.none()
+        
     def expire_articles(self):
-        if EXPIRE_ARTICLES:
-            expire_date = datetime.datetime.now() - datetime.timedelta(
-                days=EXPIRE_ARTICLES_DAYS)
-            num_expired = self.filter(date_added__lt=expire_date).update(
-                expired=True)
-            return num_expired
+        return self.expired_articles().update(expired=True)
 
 class Article(models.Model):
     headline = models.CharField(max_length=255)
