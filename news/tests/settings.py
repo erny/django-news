@@ -7,3 +7,5 @@ INSTALLED_APPS = [
 ]
 
 ROOT_URLCONF = 'news.tests.urls'
+
+NEWS_BLOCKED_HTML = ['script', 'iframe']
