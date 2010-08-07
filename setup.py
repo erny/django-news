@@ -15,9 +15,10 @@ setup(
     author='Charles Leifer',
     author_email='coleifer@gmail.com',
     url='http://github.com/coleifer/django-news/tree/master',
-    packages=find_packages(exclude=['example']),
+    packages=find_packages(),
     package_data = {
         'news': [
+            'fixtures/*.json',
             'templates/*.html',
             'templates/*/*.html',
         ],
