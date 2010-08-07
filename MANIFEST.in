@@ -3,3 +3,5 @@ include LICENSE.txt
 include MANIFEST.in
 include README.rst
 include TODO.rst
+recursive-include news/templates *.html
+recursive-include news/fixtures *.json
