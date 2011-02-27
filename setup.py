@@ -32,4 +32,5 @@ setup(
         'Programming Language :: Python',
         'Framework :: Django',
     ],
+    test_suite = 'runtests.runtests',
 )

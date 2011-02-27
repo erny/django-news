@@ -19,7 +19,7 @@ class FakeFeedItem(dict):
 
 class NewsTestCase(TestCase):
     fixtures = ['news_test_data']
-    urls = 'news.tests.urls'
+    urls = 'news.news_tests.urls'
     
     fake_feed_data = {
         'Django': [],
