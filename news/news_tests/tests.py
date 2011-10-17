@@ -94,7 +94,7 @@ class NewsTestCase(TestCase):
         # apple article had some innocuous HTML in the title, but lets the
         # settings are configured to remove it, so do it.  also remove the
         # script tags within the summary
-        apple_article = feed.sanitize_item(apple)
+        apple_article = feed.convert_item(apple)
         self.assertEqual(apple_article.headline, 'Apple gear')
         self.assertEqual(apple_article.content, 'I <3 apple')
         self.assertEqual(apple_article.url, '/apple/')
@@ -102,11 +102,27 @@ class NewsTestCase(TestCase):
         
         # here just making sure that the html blacklist will kill the iframe
         # tag while leaving the bold tags intact
-        wallet_article = feed.sanitize_item(wallet)
+        wallet_article = feed.convert_item(wallet)
         self.assertEqual(wallet_article.headline, 'Homemade wallets')
         self.assertEqual(wallet_article.content, 'In forty three <b>easy</b> steps ')
         self.assertEqual(wallet_article.url, '/wtf/')
         self.assertEqual(wallet_article.guid, '/wtf/')
+    
+    def test_for_duping(self):
+        geek_data = self.fake_feed_data['Geek']
+        geek = Feed.objects.get(name='Geek')
+        geek.process_feed()
+        
+        self.assertEqual(Article.objects.count(), 2)
+        
+        geek_data[1]['title'] = 'Homemade wallets !!!'
+        geek.process_feed()
+        geek_data[1]['title'] = 'Homemade wallets'
+        
+        self.assertEqual(Article.objects.count(), 2)
+        
+        wallet = Article.objects.get(guid='/wtf/')
+        self.assertEqual(wallet.headline, 'Homemade wallets !!!')
     
     def test_categorization_simple(self):
         geek = Category.objects.get(name='Geek')
@@ -118,12 +134,12 @@ class NewsTestCase(TestCase):
         
         # sanitize the feed data to get an unsaved article instance and
         # see that it gets categorized properly
-        apple_article = feed.sanitize_item(apple)
+        apple_article = feed.convert_item(apple)
         apple_categories = feed.get_categories_for_article(apple_article)
         
         self.assertEqual(apple_categories, [geek])
         
-        wallet_article = feed.sanitize_item(wallet)
+        wallet_article = feed.convert_item(wallet)
         wallet_categories = feed.get_categories_for_article(wallet_article)
         
         self.assertEqual(wallet_categories, [geek])
@@ -152,28 +168,28 @@ class NewsTestCase(TestCase):
         
         # this article will go into the programming category directly, but
         # it will not propagate to any descendent categories
-        git_article = feed.sanitize_item(git)
+        git_article = feed.convert_item(git)
         git_categories = feed.get_categories_for_article(git_article)
         
         self.assertEqual(git_categories, [programming])
         
         # this article will also go into the python category because it
         # has the word "python" in the headline
-        hg_article = feed.sanitize_item(hg)
+        hg_article = feed.convert_item(hg)
         hg_categories = feed.get_categories_for_article(hg_article)
         
         self.assertEqual(hg_categories, [programming, python])
         
         # this article will go into the django category, skipping the python
         # one altogether
-        dj_article = feed.sanitize_item(dj)
+        dj_article = feed.convert_item(dj)
         dj_categories = feed.get_categories_for_article(dj_article)
         
         self.assertEqual(dj_categories, [programming, django])
         
         # this article will go into all three as it has 'python' and 'django'
         # in the headline
-        py_article = feed.sanitize_item(py)
+        py_article = feed.convert_item(py)
         py_categories = feed.get_categories_for_article(py_article)
         
         self.assertEqual(py_categories, [programming, python, django])
@@ -192,12 +208,12 @@ class NewsTestCase(TestCase):
         
         misc, misc, py, dj = feed_data.entries
         
-        misc_article = feed.sanitize_item(misc)
+        misc_article = feed.convert_item(misc)
         misc_categories = feed.get_categories_for_article(misc_article)
         
         self.assertEqual(misc_categories, [geek])
         
-        py_article = feed.sanitize_item(py)
+        py_article = feed.convert_item(py)
         py_categories = feed.get_categories_for_article(py_article)
         
         self.assertEqual(py_categories, [geek, programming, python])
@@ -205,7 +221,7 @@ class NewsTestCase(TestCase):
         # once again, the article passes the whitelist filter between the
         # hacker news -> programming category, then once in the programming
         # it will propagate down to the django category
-        dj_article = feed.sanitize_item(dj)
+        dj_article = feed.convert_item(dj)
         dj_categories = feed.get_categories_for_article(dj_article)
         
         self.assertEqual(dj_categories, [geek, programming, django])

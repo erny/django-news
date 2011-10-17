@@ -143,6 +143,9 @@ class Feed(models.Model):
     
     def _encode(self, s, e):
         return s.encode(e, 'xmlcharrefreplace')
+    
+    def get_item_guid(self, item):
+        return item.get('id', item.link)
         
     def get_item_summary(self, item):
         summary = ''
@@ -173,28 +176,25 @@ class Feed(models.Model):
         
         return datetime.datetime.now()
     
-    def sanitize_item(self, item, encoding='utf-8'):
+    def convert_item(self, item, instance=None, encoding='utf-8'):
+        if instance is None:
+            instance = Article()
+        
         if NEWS_NO_HTML_TITLES:
             item.title = re.sub('<[^>]*>', '', item.title)
         
-        headline = self._encode(item.title, encoding)[:255]
-        guid = self._encode(item.get("id", item.link), encoding)
-        url = self._encode(item.link, encoding)
+        instance.feed = self
+        instance.headline = self._encode(item.title, encoding)[:255]
+        instance.guid = self._encode(self.get_item_guid(item), encoding)
+        instance.url = self._encode(item.link, encoding)
         
         summary = self._encode(self.get_item_summary(item), encoding)
         if NEWS_BLOCKED_HTML:
             summary = re.sub(NEWS_BLOCKED_REGEX, '', summary)
+        instance.content = summary
         
-        pubdate = self.get_item_pubdate(item)
-        
-        return Article(
-            feed=self,
-            headline=headline, 
-            url=url, 
-            content=summary, 
-            guid=guid, 
-            publish=pubdate
-        )
+        instance.publish = self.get_item_pubdate(item)
+        return instance
     
     def article_passes(self, article, whitelist_queryset):
         keywords = []
@@ -238,17 +238,14 @@ class Feed(models.Model):
         
         # iterate over the entries returned by the feed
         for item in data.entries:
-            article = self.sanitize_item(item, data.encoding)
+            guid = self.get_item_guid(item)
             
             try:
-                existing_article = Article.objects.get(
-                    models.Q(guid=article.guid, feed=self) |
-                    models.Q(headline__iexact=article.headline)
-                )
+                article = Article.objects.get(guid=guid, feed=self)
             except Article.DoesNotExist:
-                pass
-            else:
-                article = existing_article
+                article = Article()
+            
+            article = self.convert_item(item, article, data.encoding)
             
             matching_categories = self.get_categories_for_article(article)
             
