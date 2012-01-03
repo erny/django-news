@@ -121,6 +121,7 @@ class Feed(models.Model):
     """
     name = models.CharField(max_length=255)
     url = models.URLField()
+    fetch_all_articles = models.BooleanField(default=False, help_text="Fetch all articles in the feed")
     categories = models.ManyToManyField(Category, 
         through='FeedCategoryRelationship')
     source = models.ForeignKey(Source)
@@ -232,7 +233,10 @@ class Feed(models.Model):
         return matching_categories
     
     def process_feed(self):
-        data = self.fetch_feed()
+        try:
+            data = self.fetch_feed()
+        except Exception, exc:
+            import ipdb; ipdb.set_trace()
         
         new_articles_added = 0
         
@@ -249,7 +253,7 @@ class Feed(models.Model):
             
             matching_categories = self.get_categories_for_article(article)
             
-            if len(matching_categories) > 0:
+            if len(matching_categories) > 0 or self.fetch_all_articles:
                 if not article.pk:
                     new_articles_added += 1
                 article.save_base()
