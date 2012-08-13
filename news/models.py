@@ -233,10 +233,7 @@ class Feed(models.Model):
         return matching_categories
     
     def process_feed(self):
-        try:
-            data = self.fetch_feed()
-        except Exception, exc:
-            import ipdb; ipdb.set_trace()
+        data = self.fetch_feed()
         
         new_articles_added = 0
         
