@@ -50,10 +50,19 @@ class Command(NoArgsCommand):
             end = time.time()
             logging.info("%d new articles found (took %fs)" % (feed.new_articles_added, end - start))
             new_articles += feed.new_articles_added
-            
+
         total_end = time.time()
         logging.info("Finished processing %d feeds" % Feed.objects.filter(active=True).count())
         logging.info("%d new articles added in %f seconds" % (new_articles, total_end - total_start))
-        
+
+        logging.info("Removing repeated articles...")
+        repeated_articles_number = 0
+        for feed in Feed.objects.filter(active=True):
+            for article in feed.articles.all():
+                repeated_articles = feed.articles.exclude(id=article.id).filter(url=article.url)
+                repeated_articles_number += repeated_articles.count()
+                repeated_articles.delete()
+        logging.info("%d repeated articles removed." % repeated_articles_number)
+
         expired_articles = Article.objects.expire_articles()
         logging.info("Expired articles: %s" % expired_articles)
