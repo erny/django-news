@@ -5,6 +5,7 @@ import time
 from lxml import etree
 
 from django.db import models
+from django.forms.fields import url_re
 
 from news.constants import (NEWS_EXPIRE_ARTICLES_DAYS, NEWS_BLOCKED_HTML,
     NEWS_BLOCKED_REGEX, NEWS_NO_HTML_TITLES)
@@ -262,7 +263,10 @@ class Feed(models.Model):
                 images = [item for item in tree.iter('img')]
                 if images:
                     img = images[0]
-                    article.imgurl = img.get('src')
+                    img_src = img.get('src')
+                    if url_re.match(img_src):
+                       # avoid parsing errors
+                       article.imgurl = img_src
                     print "articulo con imagen: %s" % article.headline
                 article.save()
 
